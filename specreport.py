@@ -7,6 +7,8 @@ import time
 import glob
 import argparse
 
+from pandas import DataFrame
+
 import xml.etree.ElementTree as ET
 
 # XML item names are internationalized, this holds possible translations
@@ -15,17 +17,79 @@ tr = { 'summary': 	['Summary', 'Zusammenfassung'],
 	 }
 	
 # Output table headers
-out_head = ['Host Name', 'User', 'OS', 'CPU', 'CPU Speed', 'RAM', 'HDD', 'Date of report'] 
+COLUMNS = ['HostName', 'UserName', 'OS', 'CPU', 'CPUSpeed', 'RAM', 'HDD', 'ReportDate', 'ReportTime'] 
 
-def main():
+def scan_xml_files(xml_files=[]):
+	""" Scan a folder of Speccy XML files into a DataFrame. 
+
+	Args:
+	xml_files: 		List of XML file names to include in DataFrame
+	"""
+
+	df = DataFrame(columns=COLUMNS)
+
+	for xidx, xfile in enumerate(xml_files):
+		spec = ET.parse(xfile)
+		specr = spec.getroot()
+		fields = {}
+		
+		# Date and time of report
+		rt = time.strptime(specr.attrib['localtime'], '%Y%m%dT%H%M%S%z')
+		fields['ReportDate'] = time.strftime('%d.%m.%Y', rt)
+		fields['ReportTime'] = time.strftime('%H:%M:%S', rt)
+
+		for mainsection in specr.findall('mainsection'):
+
+			if mainsection.attrib['title'] in tr['summary']:
+				# Summary: Get OS, CPU, RAM, HDD
+				summary = mainsection.findall('section')
+				for item in summary:
+					item_id = item.attrib['id']
+					first_entry = item.find('entry')
+					
+					if item_id == '1':
+						# OS
+						fields['OS'] = first_entry.attrib['title'].strip()
+
+					elif item_id == '2':
+						# CPU + Speed
+						cpu = first_entry.attrib['title'].split('@')
+						fields['CPU'] = cpu[0].strip()
+						fields['CPUSpeed'] = cpu[1].strip()
+
+					elif item_id == '3':
+						# RAM
+						ram = first_entry.attrib['title'].split('@')
+						fields['RAM'] = ram[0].split()[0].strip()
+
+					elif item_id == '6':
+						# Storage
+						drives = ''
+						for drive in item.findall('entry'):
+							drives += '{:s}, '.format(drive.attrib['title'].replace(' ATA Device ', ' '))
+						fields['HDD'] = drives
+
+		df = df.append(fields, ignore_index=True)
+
+	return df
+
+
+def _main():
 
 	# Parse command line arguments
-	app_desc = 'Create a summary report as HTML table from multiple Speccy XML files'
+	app_desc = 'Create a summary report from multiple Speccy XML files'
 	parser = argparse.ArgumentParser(description=app_desc)
 
 	parser.add_argument(dest='xmlfiles', action='store', help='Speccy XML file or folder of files')
-	parser.add_argument('-o', '--output', dest='outfile', action='store', 
-						metavar='<output file>', help='Output file for HTML report')
+	parser.add_argument(dest='outfile', action='store', help='Output file name (default: report.csv)')
+	parser.add_argument('-x', '--excel', dest='xlsx', action='store_true', 
+						help='Output summary as XLSX file.')
+	parser.add_argument('-c', '--csv', dest='csv', action='store_true', 
+						help='Output summary as CSV file.')
+	parser.add_argument('-t', '--html', dest='html', action='store_true', 
+						help='Output summary as HTML file.')
+	parser.add_argument('-j', '--json', dest='json', action='store_true', 
+						help='Output summary as JSON file.')
 	opt = parser.parse_args()
 
 	# Create list of input files
@@ -39,88 +103,23 @@ def main():
 	else:
 		raise ValueError('Input argument is not a valid file or directory!')
 
-	# Open output file, write table header
-	if opt.outfile is None:
-		opt.outfile = 'specreport.html'
-	html = open(opt.outfile, 'w')
-	html.write(html_header())
-	html.write(table_row(out_head, header=True))
+	# Output CSV report by default
+	if not opt.xlsx and not opt.csv:
+		opt.csv = True
 
-	# Process XML files
-	for cur_f in infiles:
-		fields = ['', '', '', '', '', '', '', '']
-		spec = ET.parse(cur_f)
-		specr = spec.getroot() 
-		
-		for mainsection in specr.findall('mainsection'):
+	# Process files
+	report = scan_xml_files(infiles)
 
-			if mainsection.attrib['title'] in tr['summary']:
-				# Summary: Get OS, CPU, RAM, HDD
-				summary = mainsection.findall('section')
-				for item in summary:
-					item_id = item.attrib['id']
-					first_entry = item.find('entry')
-					
-					if item_id == '1':
-						# OS
-						fields[2] = first_entry.attrib['title'].strip()
-
-					elif item_id == '2':
-						# CPU + Speed
-						cpu = first_entry.attrib['title'].split('@')
-						fields[3] = cpu[0].strip()
-						fields[4] = cpu[1].strip()
-
-					elif item_id == '3':
-						# RAM
-						ram = first_entry.attrib['title'].split('@')
-						fields[5] = ram[0].split()[0].strip()
-
-					elif item_id == '6':
-						# Storage
-						drives = ''
-						for drive in item.findall('entry'):
-							drives += '{:s}</br>'.format(drive.attrib['title'].replace(' ATA Device ', ' '))
-						fields[6] = drives
-
-		html.write(table_row(fields))
-
-	# Close output file
-	html.write(html_footer())
-	html.close()
-
-
-def html_header():
-	""" Header for HTML output including table """
-	head = """
-	<html>
-	<head><title>PC Specifications Summary</title></head>
-	<body>
-	PC Specifications Summary, generated on {:s}</br></br>
-	<table border>
-	"""
-	t = time.strftime('%d.%m.%y, %H:%M:%S', time.localtime())
-	return head.format(t)
-
-
-def html_footer():
-	""" Footer for HTML table / file """
-	footer = """</table></body>
-	</html>
-	"""
-	return footer
-
-
-def table_row(fields, header=False):
-	""" Writes a table row """
-	row = '<tr>'
-	if not header:
-		row += '<td>{:s}</td>' * len(fields)
-	else:
-		row += '<th>{:s}</th>' * len(fields)
-	row += '</tr>'
-	return row.format(*fields)
+	# Save reports
+	if opt.csv:
+		report.to_csv(opt.outfile + '.csv', index=False)
+	if opt.xlsx:
+		report.to_excel(opt.outfile + '.xlsx', index=False)
+	if opt.html:
+		report.to_html(opt.outfile + '.html', index=False)
+	if opt.json:
+		report.to_json(opt.outfile + '.json')
 
 
 if __name__ == '__main__':
-	main()
+	_main()
