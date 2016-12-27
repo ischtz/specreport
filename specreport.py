@@ -14,10 +14,13 @@ import xml.etree.ElementTree as ET
 # XML item names are internationalized, this holds possible translations
 tr = { 'summary': 	['Summary', 'Zusammenfassung'],
 	   'hostname':	['NetBIOS Name'],
+	   'hostsect': 	['Computer Name'],
+	   'env': 		['Umgebungsvariablen', 'Environment Variables'],
+	   'ip': 		['IP Adresse', 'IP Address']
 	 }
 	
 # Output table headers
-COLUMNS = ['HostName', 'UserName', 'OS', 'CPU', 'CPUSpeed', 'RAM', 'HDD', 'ReportDate', 'ReportTime'] 
+COLUMNS = ['HostName', 'UserName', 'OS', 'CPU', 'CPUSpeed', 'RAM', 'HDD', 'IPAddress', 'ReportDate', 'ReportTime'] 
 
 def scan_xml_files(xml_files=[]):
 	""" Scan a folder of Speccy XML files into a DataFrame. 
@@ -68,6 +71,43 @@ def scan_xml_files(xml_files=[]):
 						for drive in item.findall('entry'):
 							drives += '{:s}, '.format(drive.attrib['title'].replace(' ATA Device ', ' '))
 						fields['HDD'] = drives
+
+			if 'id' in mainsection.attrib:
+				# Other sections
+				
+				if mainsection.attrib['id'] == '1':	
+					# OS Section
+					os_sect = mainsection.findall('section')
+					for item in os_sect:
+
+						if item.attrib['title'] in tr['env']:
+							# Environment Variables
+							for envvar in item.findall('entry'):
+								
+								if envvar.attrib['title'] == 'USERPROFILE':
+									# User name from profile folder
+									userprofile = envvar.attrib['value']
+									fields['UserName'] = os.path.split(userprofile)[1]
+				
+				if mainsection.attrib['id'] == '10':
+					# Networking section
+					
+					net_ent = mainsection.findall('entry')
+					for entry in net_ent:
+						# Primary IP address
+						if entry.attrib['title'] in tr['ip']:
+							fields['IPAddress'] = entry.attrib['value']
+
+					net_sect = mainsection.findall('section')
+					for item in net_sect:
+
+						if item.attrib['title'] in tr['hostsect']:
+							# Computer Name 
+							for entry in item.findall('entry'):
+
+								if entry.attrib['title'] in tr['hostname']:
+									# Host name (NetBIOS)
+									fields['HostName'] = entry.attrib['value']
 
 		df = df.append(fields, ignore_index=True)
 
