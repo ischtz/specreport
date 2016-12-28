@@ -152,7 +152,8 @@ def _main():
 	parser = argparse.ArgumentParser(description=app_desc)
 
 	parser.add_argument(dest='xmlfiles', action='store', help='Speccy XML file or folder of files')
-	parser.add_argument(dest='outfile', action='store', help='Output file name (default: report.csv)')
+	parser.add_argument('-o', '--outfile', dest='outfile', action='store_true', 
+						help='Output file base name (default: report.*)')	
 	parser.add_argument('-x', '--excel', dest='xlsx', action='store_true', 
 						help='Output summary as XLSX file.')
 	parser.add_argument('-c', '--csv', dest='csv', action='store_true', 
@@ -162,6 +163,10 @@ def _main():
 	parser.add_argument('-j', '--json', dest='json', action='store_true', 
 						help='Output summary as JSON file.')
 	opt = parser.parse_args()
+
+	# Default output file name
+	if not opt.outfile or opt.outfile == '':
+		opt.outfile = 'report'
 
 	# Create list of input files
 	if os.path.isdir(opt.xmlfiles):
@@ -174,22 +179,52 @@ def _main():
 	else:
 		raise ValueError('Input argument is not a valid file or directory!')
 
-	# Output CSV report by default
-	if not opt.xlsx and not opt.csv:
-		opt.csv = True
+	# Output HTML report by default
+	if not opt.xlsx and not opt.csv and not opt.html and not opt.json:
+		opt.html = True
 
 	# Process files
 	report = scan_xml_files(infiles)
+	report = report.sort_values(by='HostName')
 
 	# Save reports
 	if opt.csv:
-		report.to_csv(opt.outfile + '.csv', index=False)
+		report.to_csv(opt.outfile + '.csv', index=False, na_rep='n/a')
+	
 	if opt.xlsx:
-		report.to_excel(opt.outfile + '.xlsx', index=False)
+		report.to_excel(opt.outfile + '.xlsx', index=False, na_rep='n/a')
+	
 	if opt.html:
-		report.to_html(opt.outfile + '.html', index=False)
+		html = open(opt.outfile + '.html', 'w')
+		html.write(_html_header(report))
+		report.to_html(html, justify='left', index=False, na_rep='n/a')
+		html.write(_html_footer())
+		html.close()
+
 	if opt.json:
 		report.to_json(opt.outfile + '.json')
+
+
+def _html_header(data_frame):
+	""" Header for HTML output including table """
+	head = """
+	<html>
+	<head><title>PC Specifications Summary</title></head>
+	<body>
+	PC Specifications Summary, generated on {:s}</br>
+	{:d} Machines listed</br></br>
+	<table border>
+	"""
+	t = time.strftime('%d.%m.%y, %H:%M:%S', time.localtime())
+	return head.format(t, data_frame.shape[0])
+
+
+def _html_footer():
+	""" Footer for HTML table / file """
+	footer = """</table></body>
+	</html>
+	"""
+	return footer
 
 
 if __name__ == '__main__':
