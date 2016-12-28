@@ -16,11 +16,17 @@ tr = { 'summary': 	['Summary', 'Zusammenfassung'],
 	   'hostname':	['NetBIOS Name'],
 	   'hostsect': 	['Computer Name'],
 	   'env': 		['Umgebungsvariablen', 'Environment Variables'],
-	   'ip': 		['IP Adresse', 'IP Address']
+	   'ip': 		['IP Adresse', 'IP Address'],
+	   'ramsect': 	['Memory', 'Speicher'],
+	   'ramtype': 	['Type', 'Typ'],
+	   'ramsize': 	['Größe', 'Size'],
+	   'rambsect':	['Speicherbänke', 'Memory slots'],
+	   'rambtot':	['Gesamte Speicherbänke', 'Total memory slots'],
+	   'rambused': 	['Genutzte Speicherbänke', 'Used memory slots']
 	 }
 	
 # Output table headers
-COLUMNS = ['HostName', 'UserName', 'OS', 'CPU', 'CPUSpeed', 'RAM', 'HDD', 'IPAddress', 'ReportDate', 'ReportTime'] 
+COLUMNS = ['HostName', 'UserName', 'OS', 'CPU', 'CPUSpeed', 'RAMType', 'RAMSlots', 'RAMSlotsUsed', 'RAMSize', 'HDD', 'OpticalDrive', 'IPAddress', 'ReportDate', 'ReportTime'] 
 
 def scan_xml_files(xml_files=[]):
 	""" Scan a folder of Speccy XML files into a DataFrame. 
@@ -60,17 +66,20 @@ def scan_xml_files(xml_files=[]):
 						fields['CPU'] = cpu[0].strip()
 						fields['CPUSpeed'] = cpu[1].strip()
 
-					elif item_id == '3':
-						# RAM
-						ram = first_entry.attrib['title'].split('@')
-						fields['RAM'] = ram[0].split()[0].strip()
-
 					elif item_id == '6':
 						# Storage
 						drives = ''
 						for drive in item.findall('entry'):
 							drives += '{:s}, '.format(drive.attrib['title'].replace(' ATA Device ', ' '))
 						fields['HDD'] = drives
+
+					elif item_id == '7':
+						# Optical Drives
+						odrives = ''
+						for drive in item.findall('entry'):
+							odrives += '{:s}, '.format(drive.attrib['title'].replace(' ATA Device ', ' '))
+						fields['OpticalDrive'] = odrives
+
 
 			if 'id' in mainsection.attrib:
 				# Other sections
@@ -83,12 +92,34 @@ def scan_xml_files(xml_files=[]):
 						if item.attrib['title'] in tr['env']:
 							# Environment Variables
 							for envvar in item.findall('entry'):
-								
 								if envvar.attrib['title'] == 'USERPROFILE':
 									# User name from profile folder
 									userprofile = envvar.attrib['value']
 									fields['UserName'] = os.path.split(userprofile)[1]
 				
+				if mainsection.attrib['id'] == '3':	
+					# RAM Section
+					ram_sect = mainsection.findall('section')
+					for item in ram_sect:
+						if item.attrib['title'] in tr['ramsect']:
+							# Memory - general
+							for ram in item.findall('entry'):
+								if ram.attrib['title'] in tr['ramtype']:
+									fields['RAMType'] = ram.attrib['value']
+								
+								elif ram.attrib['title'] in tr['ramsize']:
+									fields['RAMSize'] = ram.attrib['value'].split(' ')[0]
+
+						elif item.attrib['title'] in tr['rambsect']:
+							# Memory - slots
+							for ram in item.findall('entry'):
+								if ram.attrib['title'] in tr['rambtot']:
+									fields['RAMSlots'] = int(ram.attrib['value'])
+								
+								elif ram.attrib['title'] in tr['rambused']:
+									fields['RAMSlotsUsed'] = int(ram.attrib['value'])
+								
+
 				if mainsection.attrib['id'] == '10':
 					# Networking section
 					
