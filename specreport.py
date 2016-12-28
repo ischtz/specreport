@@ -151,7 +151,7 @@ def _main():
 	parser = argparse.ArgumentParser(description=app_desc)
 
 	parser.add_argument(dest='xmlfiles', action='store', help='Speccy XML file or folder of files')
-	parser.add_argument('-o', '--outfile', dest='outfile', action='store_true', 
+	parser.add_argument('-o', '--outfile', dest='outfile', action='store', metavar='<outfile>', 
 						help='Output file base name (default: report.*)')	
 	parser.add_argument('-x', '--excel', dest='xlsx', action='store_true', 
 						help='Output summary as XLSX file.')
