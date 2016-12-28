@@ -26,7 +26,7 @@ tr = { 'summary': 	['Summary', 'Zusammenfassung'],
 	 }
 	
 # Output table headers
-COLUMNS = ['HostName', 'UserName', 'OS', 'CPU', 'CPUSpeed', 'RAMType', 'RAMSlots', 'RAMSlotsUsed', 'RAMSize', 'HDD', 'OpticalDrive', 'IPAddress', 'ReportDate', 'ReportTime'] 
+COLUMNS = ['HostName', 'UserName', 'OS', 'CPU', 'CPUSpeed', 'RAMType', 'Slots', 'SlotsUsed', 'RAMSize', 'HDD', 'OpticalDrive', 'IPAddress', 'ReportDate', 'ReportTime'] 
 
 def scan_xml_files(xml_files=[]):
 	""" Scan a folder of Speccy XML files into a DataFrame. 
@@ -114,11 +114,10 @@ def scan_xml_files(xml_files=[]):
 							# Memory - slots
 							for ram in item.findall('entry'):
 								if ram.attrib['title'] in tr['rambtot']:
-									fields['RAMSlots'] = int(ram.attrib['value'])
+									fields['Slots'] = ram.attrib['value']
 								
 								elif ram.attrib['title'] in tr['rambused']:
-									fields['RAMSlotsUsed'] = int(ram.attrib['value'])
-								
+									fields['SlotsUsed'] = ram.attrib['value']								
 
 				if mainsection.attrib['id'] == '10':
 					# Networking section
@@ -195,9 +194,27 @@ def _main():
 		report.to_excel(opt.outfile + '.xlsx', index=False, na_rep='n/a')
 	
 	if opt.html:
+		tstyle = [{'selector': ' ', 
+				   'props': [('border', '1px solid black'),
+				   			 ('border-collapse', 'collapse'),
+				   			 ('border-spacing', '0px 0px')]}, 
+				   {'selector': 'td', 
+				   'props': [('border', '1px solid black'),
+				   			 ('border-collapse', 'collapse')]}, 
+				   {'selector': 'th', 
+				   'props': [('border', '1px solid black')]},
+				   {'selector': 'th:first-child', 
+				   'props': [('display', 'none')]},
+				   {'selector': 'tr:hover', 
+				   'props': [('background-color', '#eeeeee')]},
+				   {'selector': '.col0', 
+				   'props': [('display', 'none')]}]
 		html = open(opt.outfile + '.html', 'w')
 		html.write(_html_header(report))
-		report.to_html(html, justify='left', index=False, na_rep='n/a')
+		
+		table = report.style.set_table_styles(tstyle)
+		html.write(table.render())
+		
 		html.write(_html_footer())
 		html.close()
 
@@ -209,9 +226,14 @@ def _html_header(data_frame):
 	""" Header for HTML output including table """
 	head = """
 	<html>
-	<head><title>PC Specifications Summary</title></head>
+	<head><title>PC Specifications Summary</title>
+	<style>body {{
+		font-family: sans-serif; }}
+	</style>
+	</head>
 	<body>
-	PC Specifications Summary, generated on {:s}</br>
+	<h3>PC Specifications Summary</h3>
+	Generated on {:s}</br>
 	{:d} Machines listed</br></br>
 	<table border>
 	"""
