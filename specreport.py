@@ -207,7 +207,7 @@ def _main():
 				   'props': [('display', 'none')]},
 				   {'selector': 'tr:hover', 
 				   'props': [('background-color', '#eeeeee')]},
-				   {'selector': '.col0', 
+				   {'selector': 'row_heading',
 				   'props': [('display', 'none')]}]
 		html = open(opt.outfile + '.html', 'w')
 		html.write(_html_header(report))
