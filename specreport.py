@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 # -*- coding: utf-8 -*-
 
 import os
@@ -95,7 +95,7 @@ def scan_xml_files(xml_files=[]):
 								if envvar.attrib['title'] == 'USERPROFILE':
 									# User name from profile folder
 									userprofile = envvar.attrib['value']
-									fields['UserName'] = os.path.split(userprofile)[1]
+									fields['UserName'] = userprofile.split('\\')[-1]
 				
 				if mainsection.attrib['id'] == '3':	
 					# RAM Section
@@ -150,7 +150,8 @@ def _main():
 	app_desc = 'Create a summary report from multiple Speccy XML files'
 	parser = argparse.ArgumentParser(description=app_desc)
 
-	parser.add_argument(dest='xmlfiles', action='store', help='Speccy XML file or folder of files')
+	parser.add_argument(dest='xmlfiles', action='store', default='reports/', nargs='?',
+						help='Speccy XML file or folder of files')
 	parser.add_argument('-o', '--outfile', dest='outfile', action='store', metavar='<outfile>', 
 						help='Output file base name (default: report.*)')	
 	parser.add_argument('-x', '--excel', dest='xlsx', action='store_true', 
